@@ -6,8 +6,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
+	"sync"
 )
+
+var (
+	wg sync.WaitGroup
+)
+
+var reg = regexp.MustCompile("^[\u4e00-\u9fa5]$")
 
 // GetHTMLText 用于网络请求
 func GetHTMLText(url string) []byte {
@@ -36,9 +44,6 @@ func GetImagePage(url string) {
 		panic("序列化Html到node时出错！")
 	}
 
-	// 初始化url列表
-	urlList := make([]string, 0)
-
 	nextUrl := htmlquery.Find(node, "//ul[@class='g-piclist-container']//li/div/div[@class='m-img-wrap']/a/@href")
 	for _, i := range nextUrl {
 		url := htmlquery.InnerText(i)
@@ -47,15 +52,11 @@ func GetImagePage(url string) {
 			if url[0] != '/' {
 				continue
 			} else {
-				urlList = append(urlList, fmt.Sprintf("https://m.woyaogexing.com%s", url))
+				wg.Add(1)
+				go GetImageContent(fmt.Sprintf("https://m.woyaogexing.com%s", url))
 			}
 		}
 	}
-
-	for _, url := range urlList {
-		go GetImageContent(url)
-	}
-
 }
 
 func GetImageContent(url string) {
@@ -64,14 +65,9 @@ func GetImageContent(url string) {
 	if err != nil {
 		panic(err)
 	}
-	// title
+	// 疯狂过滤title， 这jb网站 title一堆不合法的 都不能创建文件夹
 	title := htmlquery.FindOne(node, "//h1[@class='m-page-title']/text()").Data
-	title = strings.Replace(title, "/", "", -1)
-	title = strings.Replace(title, ":", "", -1)
-	title = strings.Replace(title, "?", "", -1)
-	title = strings.Replace(title, "|", "", -1)
-	title = strings.Replace(title, ".", "", -1)
-	title = strings.Replace(title, " ", "", -1)
+	StrFilterNonChinese(&title)
 
 	imageUrls := htmlquery.Find(node, "//ul[@class='m-page-txlist wbpCtr f-clear']//li/div/img/@data-src")
 
@@ -81,6 +77,8 @@ func GetImageContent(url string) {
 		imageUrl := fmt.Sprintf("http:%s", htmlquery.InnerText(i))
 		SaveImageToDisk(title, imageUrl, tempID)
 	}
+
+	wg.Done()
 }
 
 // SaveImageToDisk
@@ -119,7 +117,20 @@ func Spider() {
 	}
 }
 
+// StrFilterNonChinese 过滤非中文字符
+func StrFilterNonChinese(src *string) {
+	strn := ""
+	for _, c := range *src {
+		if reg.MatchString(string(c)) {
+			strn += string(c)
+		}
+	}
+
+	*src = strn
+}
+
 func main() {
 	Spider()
-	select {}
+
+	wg.Wait()
 }
