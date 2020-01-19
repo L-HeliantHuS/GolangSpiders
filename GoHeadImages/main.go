@@ -11,10 +11,16 @@ import (
 	"sync"
 )
 
+/*
+	这个爬虫完全是无聊写着玩的， 之前用Python实现过，不过速度觉得并不快，于是用Go重写了一遍，速度起飞，代码结构以及注释并不标准QAQ
+*/
+
+// 初始化WaitGroup
 var (
 	wg sync.WaitGroup
 )
 
+// 用于匹配中文字符
 var reg = regexp.MustCompile("^[\u4e00-\u9fa5]$")
 
 // GetHTMLText 用于网络请求
@@ -59,6 +65,7 @@ func GetImagePage(url string) {
 	}
 }
 
+// GetImageContent 获取图片各种信息
 func GetImageContent(url string) {
 	htmlText := GetHTMLText(url)
 	node, err := htmlquery.Parse(strings.NewReader(string(htmlText)))
@@ -81,7 +88,7 @@ func GetImageContent(url string) {
 	wg.Done()
 }
 
-// SaveImageToDisk
+// SaveImageToDisk 保存图片到硬盘
 func SaveImageToDisk(filepath string, url string, id int) {
 
 	path := fmt.Sprintf("images/%s", filepath)
@@ -130,7 +137,9 @@ func StrFilterNonChinese(src *string) {
 }
 
 func main() {
+	// 执行Spider主程序
 	Spider()
 
+	// WaitGroup等待
 	wg.Wait()
 }
